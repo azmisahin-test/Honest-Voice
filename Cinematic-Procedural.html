@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sinematik Prosedürel Ses · v2.1</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{margin:0;height:100%;background:#05070a;color:#e6edf3;
+    font-family:system-ui,sans-serif;overflow:hidden}
+  @supports (height: 100dvh){body{height:100dvh}}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .hud{position:fixed;left:24px;bottom:24px;background:rgba(10,15,22,.85);
+    border:1px solid rgba(120,180,255,.15);border-radius:12px;padding:16px 20px;
+    font-size:13px;color:#8ea3b8;line-height:1.6;max-width:340px;backdrop-filter:blur(10px)}
+  .hud b{color:#e6edf3;font-weight:500}
+  .hud kbd{background:#1a2432;border:1px solid #2a3a4d;border-radius:4px;
+    padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px;color:#a8c5e0}
+  #start{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    padding:20px 48px;font-size:19px;font-weight:500;letter-spacing:2px;
+    background:linear-gradient(135deg,#1a4d3a,#2a8f6a);color:#fff;border:0;
+    border-radius:14px;cursor:pointer;box-shadow:0 8px 32px rgba(42,143,106,.4);
+    transition:all .3s;z-index:100}
+  #start:hover{transform:translate(-50%,-50%) scale(1.04)}
+  #start.hidden{opacity:0;pointer-events:none}
+  .title{position:fixed;top:24px;left:24px;font-size:11px;letter-spacing:4px;
+    color:#4a6580;text-transform:uppercase;font-weight:600;z-index:30}
+  .vol{position:fixed;top:24px;right:24px;background:rgba(10,15,22,.85);
+    padding:10px 16px;border-radius:10px;border:1px solid rgba(120,180,255,.15);
+    font-size:12px;color:#8ea3b8;display:flex;align-items:center;gap:10px;z-index:30}
+  .vol input{width:120px;accent-color:#2a8f6a}
+  .layers{position:fixed;right:24px;bottom:24px;background:rgba(10,15,22,.85);
+    padding:14px 18px;border-radius:10px;border:1px solid rgba(120,180,255,.15);
+    font-size:12px;color:#8ea3b8;display:flex;flex-direction:column;gap:8px;
+    min-width:200px;z-index:30}
+  .layers label{display:flex;align-items:center;gap:10px;justify-content:space-between}
+  .layers input{width:110px;accent-color:#2a8f6a}
+  .mobile-hint{display:none}
+  /* Joystick + touch UI */
+  .joy-base{display:none;position:fixed;left:24px;bottom:24px;
+    width:130px;height:130px;border-radius:50%;
+    background:rgba(10,15,22,.45);border:2px solid rgba(120,180,255,.25);
+    touch-action:none;z-index:40;pointer-events:auto}
+  .joy-knob{display:none;position:fixed;width:54px;height:54px;
+    border-radius:50%;background:rgba(42,143,106,.75);
+    border:2px solid rgba(120,180,255,.55);pointer-events:none;z-index:41;
+    box-shadow:0 4px 16px rgba(42,143,106,.4)}
+  .side-btn{display:none;position:fixed;right:24px;width:52px;height:52px;
+    border-radius:50%;background:rgba(10,15,22,.8);
+    border:1px solid rgba(120,180,255,.3);color:#a8c5e0;font-size:20px;
+    z-index:40;touch-action:none;cursor:pointer}
+  .side-btn.up{bottom:110px}
+  .side-btn.dn{bottom:48px}
+  .settings-btn{display:none;position:fixed;top:16px;right:16px;
+    width:46px;height:46px;border-radius:50%;
+    background:rgba(10,15,22,.9);border:1px solid rgba(120,180,255,.3);
+    color:#e6edf3;font-size:20px;z-index:60;cursor:pointer;touch-action:manipulation}
+  .settings-overlay{display:none;position:fixed;inset:0;background:rgba(5,7,10,.5);
+    z-index:59;backdrop-filter:blur(4px)}
+  .settings-overlay.open{display:block}
+  .settings-panel-mobile{display:none;position:fixed;top:74px;right:16px;
+    width:min(280px,calc(100vw - 32px));max-height:calc(100dvh - 100px);
+    overflow-y:auto;background:rgba(10,15,22,.97);
+    border-radius:14px;padding:14px;z-index:61;
+    border:1px solid rgba(120,180,255,.2);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .settings-panel-mobile.open{display:block}
+  .settings-panel-mobile h3{margin:0 0 12px 0;font-size:11px;
+    letter-spacing:2px;color:#5a7a9a;text-transform:uppercase;font-weight:600}
+  .settings-panel-mobile .row{display:flex;align-items:center;
+    justify-content:space-between;margin-bottom:10px;font-size:12px;color:#8ea3b8;gap:10px}
+  .settings-panel-mobile .row input{flex:1;accent-color:#2a8f6a}
+  @media (max-width: 768px), (pointer: coarse) {
+    .mobile-hint{display:inline}
+    .desktop-hint{display:none}
+    .title{top:14px;left:14px;font-size:9px;letter-spacing:2px}
+    .vol,.layers{display:none}
+    .hud{left:12px;right:auto;bottom:auto;top:56px;
+      padding:8px 12px;font-size:10px;max-width:200px;line-height:1.5;border-radius:8px}
+    .hud kbd{font-size:9px;padding:0 4px}
+    .settings-btn{display:block}
+    .joy-base,.joy-knob,.side-btn{display:block}
+    #start{padding:18px 40px;font-size:17px}
+  }
+  @media (max-height: 500px) and (pointer: coarse) {
+    .hud{display:none}
+    .joy-base{width:100px;height:100px;left:16px;bottom:16px}
+    .joy-knob{width:44px;height:44px}
+    .side-btn{width:44px;height:44px;font-size:16px;right:16px}
+    .side-btn.up{bottom:80px}
+    .side-btn.dn{bottom:26px}
+  }
+</style>
+</head>
+<body>
+<canvas id="radar"></canvas>
+<div class="title">◉ SİNEMATİK 3D PROSEDÜREL · v2.1</div>
+
+<!-- Desktop controls -->
+<div class="vol"><span>▣</span><input id="masterVol" type="range" min="0" max="1" step="0.01" value="0.7"></div>
+<div class="layers">
+  <label>Rüzgar <input id="vWind" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <label>Yağmur <input id="vRain" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <label>Ateş <input id="vFire" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <label>Dere <input id="vStream" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+  <label>Böcekler <input id="vBug" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+  <label>Kuşlar <input id="vBird" type="range" min="0" max="1" step="0.01" value="0.4"></label>
+</div>
+
+<!-- Mobile settings -->
+<button id="settingsBtn" class="settings-btn" aria-label="Ayarlar">⚙</button>
+<div id="settingsOverlay" class="settings-overlay"></div>
+<div id="settingsPanel" class="settings-panel-mobile">
+  <h3>Master & Katmanlar</h3>
+  <div class="row"><span>▣ Master</span><input id="masterVolM" type="range" min="0" max="1" step="0.01" value="0.7"></div>
+  <div class="row"><span>Rüzgar</span><input id="vWindM" type="range" min="0" max="1" step="0.01" value="0.6"></div>
+  <div class="row"><span>Yağmur</span><input id="vRainM" type="range" min="0" max="1" step="0.01" value="0.6"></div>
+  <div class="row"><span>Ateş</span><input id="vFireM" type="range" min="0" max="1" step="0.01" value="0.6"></div>
+  <div class="row"><span>Dere</span><input id="vStreamM" type="range" min="0" max="1" step="0.01" value="0.6"></div>
+  <div class="row"><span>Böcekler</span><input id="vBugM" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+  <div class="row"><span>Kuşlar</span><input id="vBirdM" type="range" min="0" max="1" step="0.01" value="0.4"></div>
+</div>
+
+<!-- Mobile joystick + up/down -->
+<div id="joyBase" class="joy-base"></div>
+<div id="joyKnob" class="joy-knob"></div>
+<button id="btnUp" class="side-btn up" aria-label="Yüksel">▲</button>
+<button id="btnDn" class="side-btn dn" aria-label="Alçal">▼</button>
+
+<button id="start">BAŞLAT</button>
+
+<div class="hud">
+  <b>Kulaklık şart.</b> Her kaynak HRTF ile konumsal.<br>
+  <span class="desktop-hint"><kbd>Fare</kbd> kafanı çevir · <kbd>WASD</kbd> yürü · <kbd>Q/E</kbd> yüksel/alçal</span>
+  <span class="mobile-hint">Sol-alt joystick: yürü · Sağ taraf: bak · ▲▼ yüksel/alçal</span>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const canvas = $('radar'), g = canvas.getContext('2d');
+let audio, master, sum;
+let running = false, yaw = 0, pitch = 0;
+let pos = { x: 0, y: 1.6, z: 0 };
+const keys = {};
+const sources = [];
+const cache = {};
+
+/* ---------- Primitifler ---------- */
+function noise(type, dur = 3) {
+  const key = type + dur;
+  if (cache[key]) return cache[key];
+  const len = Math.floor(audio.sampleRate * dur);
+  const b = audio.createBuffer(1, len, audio.sampleRate);
+  const d = b.getChannelData(0);
+  if (type === 'white') for (let i = 0; i < len; i++) d[i] = Math.random()*2-1;
+  else if (type === 'pink') {
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random()*2-1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926;
+    }
+  } else if (type === 'brown') {
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random()*2-1;
+      last = (last + 0.02*w) / 1.02;
+      d[i] = last * 3.5;
+    }
+  }
+  cache[key] = b;
+  return b;
+}
+function panner(x,y,z) {
+  const p = audio.createPanner();
+  p.panningModel = 'HRTF';
+  p.distanceModel = 'inverse';
+  p.refDistance = 1.4;
+  p.maxDistance = 80;
+  p.rolloffFactor = 1.05;
+  setPannerPos(p, x, y, z);
+  return p;
+}
+function setPannerPos(p, x, y, z) {
+  if (p.positionX) {
+    p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z;
+  } else {
+    p.setPosition(x, y, z);
+  }
+}
+function reverbIR() {
+  const sr = audio.sampleRate, len = Math.floor(sr * 3.6);
+  const ir = audio.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      let s = (Math.random()*2-1) * Math.pow(1 - i/len, 1.6);
+      if (t < 0.14) s += (Math.random()*2-1) * (1 - t/0.14) * 0.4;
+      if (t < 0.02) s *= (t/0.02) * 0.3;
+      d[i] = s;
+    }
+  }
+  return ir;
+}
+
+/* ---------- RÜZGAR ---------- */
+function buildWind() {
+  const out = audio.createGain();
+  const pan = panner(0, 3, -4);
+  out.connect(pan); pan.connect(sum);
+
+  const src = audio.createBufferSource();
+  src.buffer = noise('pink'); src.loop = true;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=650; lp.Q.value=0.6;
+  const hp = audio.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=90;
+  const amp = audio.createGain(); amp.gain.value = 0.55;
+  src.connect(lp); lp.connect(hp); hp.connect(amp); amp.connect(out);
+  src.start();
+
+  const whistle = audio.createBiquadFilter();
+  whistle.type='bandpass'; whistle.frequency.value=1400; whistle.Q.value=10;
+  const wg = audio.createGain(); wg.gain.value = 0.035;
+  hp.connect(whistle); whistle.connect(wg); wg.connect(out);
+
+  const leafHP = audio.createBiquadFilter();
+  leafHP.type='highpass'; leafHP.frequency.value=3200;
+  const leafG = audio.createGain(); leafG.gain.value = 0.05;
+  hp.connect(leafHP); leafHP.connect(leafG); leafG.connect(out);
+
+  const lfo1 = audio.createOscillator(); lfo1.frequency.value = 0.07;
+  const lfo1g = audio.createGain(); lfo1g.gain.value = 400;
+  lfo1.connect(lfo1g); lfo1g.connect(lp.frequency);
+
+  const lfo2 = audio.createOscillator(); lfo2.frequency.value = 0.13;
+  const lfo2g = audio.createGain(); lfo2g.gain.value = 0.4;
+  lfo2.connect(lfo2g); lfo2g.connect(amp.gain);
+
+  const lfo3 = audio.createOscillator(); lfo3.frequency.value = 0.045;
+  const lfo3g = audio.createGain(); lfo3g.gain.value = 500;
+  lfo3.connect(lfo3g); lfo3g.connect(whistle.frequency);
+
+  const lfo4 = audio.createOscillator(); lfo4.frequency.value = 0.31;
+  const lfo4g = audio.createGain(); lfo4g.gain.value = 0.03;
+  lfo4.connect(lfo4g); lfo4g.connect(leafG.gain);
+
+  lfo1.start(); lfo2.start(); lfo3.start(); lfo4.start();
+
+  const t0 = audio.currentTime;
+  function move() {
+    if (!running) return;
+    const t = audio.currentTime - t0;
+    const a = t * 0.12;
+    setPannerPos(pan, Math.cos(a)*6, 2.5 + Math.sin(t*0.07)*1.2, Math.sin(a)*6);
+    requestAnimationFrame(move);
+  }
+  move();
+
+  sources.push({
+    name:'Rüzgar', color:'#a78bfa',
+    getPos: () => ({x:pan.positionX.value,y:pan.positionY.value,z:pan.positionZ.value}),
+    setLevel: v => out.gain.value = v
+  });
+}
+
+/* ---------- ATEŞ ---------- */
+function buildFire(x,y,z) {
+  const out = audio.createGain(); out.gain.value = 0.6;
+  const pan = panner(x,y,z);
+  out.connect(pan); pan.connect(sum);
+
+  const rumble = audio.createBufferSource();
+  rumble.buffer = noise('pink'); rumble.loop = true;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=160; lp.Q.value=0.8;
+  const rg = audio.createGain(); rg.gain.value = 0.16;
+  rumble.connect(lp); lp.connect(rg); rg.connect(out);
+  rumble.start();
+
+  const modes = [340, 720, 1250, 2100, 3400, 5200];
+  const modeF = modes.map(f => {
+    const bp = audio.createBiquadFilter();
+    bp.type='bandpass'; bp.frequency.value=f; bp.Q.value = 5 + Math.random()*6;
+    const gg = audio.createGain(); gg.gain.value = 0.04 + Math.random()*0.07;
+    bp.connect(gg); gg.connect(out);
+    return bp;
+  });
+
+  let nextT = audio.currentTime + 0.2;
+  function tick() {
+    if (!running) return;
+    // Burst koruması — sekme arkaplandıysa resetle
+    if (nextT < audio.currentTime) nextT = audio.currentTime + 0.05;
+    let iter = 0;
+    while (nextT < audio.currentTime + 0.15 && iter++ < 80) {
+      nextT += 0.03 + Math.random() * 0.22;
+      const r = Math.random();
+      let isPop = r < 0.1, isSpark = !isPop && r < 0.45;
+      const src = audio.createBufferSource();
+      src.buffer = noise('white');
+      src.playbackRate.value = 0.4 + Math.random()*1.8;
+      const gg = audio.createGain();
+      const dur = isPop ? 0.1 + Math.random()*0.25 : (isSpark ? 0.005 + Math.random()*0.012 : 0.02 + Math.random()*0.04);
+      const peak = isPop ? 0.22 + Math.random()*0.18 : (isSpark ? 0.02 + Math.random()*0.03 : 0.06 + Math.random()*0.05);
+      gg.gain.setValueAtTime(0, nextT);
+      gg.gain.linearRampToValueAtTime(peak, nextT + 0.0008);
+      gg.gain.exponentialRampToValueAtTime(0.0001, nextT + dur);
+      src.connect(gg);
+      modeF.forEach(bp => gg.connect(bp));
+      const raw = audio.createGain(); raw.gain.value = isPop ? 0.5 : 0.25;
+      gg.connect(raw); raw.connect(out);
+      src.start(nextT, Math.random()*2.5, dur + 0.05);
+      src.stop(nextT + dur + 0.1);
+    }
+    setTimeout(tick, 40);
+  }
+  tick();
+  sources.push({ name:'Ateş', color:'#f97316', getPos: () => ({x,y,z}), setLevel: v => out.gain.value = v * 0.6 });
+}
+
+/* ---------- YAĞMUR ---------- */
+function buildRain() {
+  const out = audio.createGain(); out.gain.value = 0.35;
+  const pan = panner(0, 7, -1.5);
+  out.connect(pan); pan.connect(sum);
+
+  const bed = audio.createBufferSource();
+  bed.buffer = noise('white'); bed.loop = true;
+  const hp = audio.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1800;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=9000;
+  const bg = audio.createGain(); bg.gain.value = 0.06;
+  bed.connect(hp); hp.connect(lp); lp.connect(bg); bg.connect(out);
+  bed.start();
+
+  let nextT = audio.currentTime + 0.1;
+  function tick() {
+    if (!running) return;
+    if (nextT < audio.currentTime) nextT = audio.currentTime + 0.02;
+    let iter = 0;
+    while (nextT < audio.currentTime + 0.1 && iter++ < 100) {
+      nextT += 0.004 + Math.random()*0.016;
+      const splash = Math.random() < 0.15;
+      const src = audio.createBufferSource();
+      src.buffer = noise('white');
+      src.playbackRate.value = splash ? 0.4 + Math.random()*0.6 : 0.8 + Math.random()*1.2;
+      const bp = audio.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = splash ? 400 + Math.random()*900 : 2200 + Math.random()*5500;
+      bp.Q.value = splash ? 2 + Math.random()*3 : 4 + Math.random()*12;
+      const gg = audio.createGain();
+      const dur = splash ? 0.06 + Math.random()*0.08 : 0.012 + Math.random()*0.03;
+      gg.gain.setValueAtTime(0, nextT);
+      gg.gain.linearRampToValueAtTime((splash ? 0.05 : 0.025) + Math.random()*0.04, nextT + 0.0005);
+      gg.gain.exponentialRampToValueAtTime(0.0001, nextT + dur);
+      src.connect(bp); bp.connect(gg); gg.connect(out);
+      src.start(nextT, Math.random()*2.5, dur + 0.01);
+      src.stop(nextT + dur + 0.02);
+    }
+    setTimeout(tick, 20);
+  }
+  tick();
+  sources.push({ name:'Yağmur', color:'#60a5fa', getPos: () => ({x:0,y:7,z:-1.5}), setLevel: v => out.gain.value = v * 0.5 });
+}
+
+/* ---------- DERE ---------- */
+function buildStream(x,y,z) {
+  const out = audio.createGain(); out.gain.value = 0.3;
+  const pan = panner(x,y,z);
+  out.connect(pan); pan.connect(sum);
+
+  const src = audio.createBufferSource();
+  src.buffer = noise('white'); src.loop = true;
+  const bp = audio.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=1.4;
+  const gg = audio.createGain(); gg.gain.value = 0.11;
+  src.connect(bp); bp.connect(gg); gg.connect(out);
+  src.start();
+
+  let nextT = audio.currentTime + 0.3;
+  function tick() {
+    if (!running) return;
+    if (nextT < audio.currentTime) nextT = audio.currentTime + 0.05;
+    while (nextT < audio.currentTime + 0.15) {
+      nextT += 0.12 + Math.random()*0.45;
+      const osc = audio.createOscillator(); osc.type = 'sine';
+      const f0 = 280 + Math.random()*500;
+      osc.frequency.setValueAtTime(f0, nextT);
+      osc.frequency.exponentialRampToValueAtTime(f0*2.5, nextT + 0.04);
+      const gb = audio.createGain();
+      gb.gain.setValueAtTime(0, nextT);
+      gb.gain.linearRampToValueAtTime(0.035 + Math.random()*0.05, nextT + 0.004);
+      gb.gain.exponentialRampToValueAtTime(0.0001, nextT + 0.06);
+      osc.connect(gb); gb.connect(out);
+      osc.start(nextT); osc.stop(nextT + 0.07);
+    }
+    setTimeout(tick, 100);
+  }
+  tick();
+  sources.push({ name:'Dere', color:'#22d3ee', getPos: () => ({x,y,z}), setLevel: v => out.gain.value = v * 0.5 });
+}
+
+/* ---------- BÖCEKLER ---------- */
+function buildCrickets() {
+  const spots = [
+    {x:-5,y:0.4,z:-3,color:'#fbbf24'},
+    {x:4,y:0.3,z:3,color:'#fcd34d'},
+    {x:-2,y:0.5,z:5,color:'#fde68a'},
+    {x:6,y:0.4,z:-5,color:'#fbbf24'},
+  ];
+  spots.forEach(spot => {
+    const out = audio.createGain(); out.gain.value = 0.14;
+    const pan = panner(spot.x, spot.y, spot.z);
+    out.connect(pan); pan.connect(sum);
+    const baseFreq = 3600 + Math.random()*1800;
+    const chirpRate = 22 + Math.random()*20;
+    function pattern() {
+      if (!running) return;
+      const now = audio.currentTime;
+      const n = 3 + Math.floor(Math.random()*3);
+      for (let c = 0; c < n; c++)
+        for (let k = 0; k < 3; k++)
+          chirpPulse(now + c*0.13 + k*0.022, baseFreq, chirpRate, out);
+      setTimeout(pattern, (2 + Math.random()*2.5) * 1000);
+    }
+    setTimeout(pattern, 800 + Math.random()*3000);
+    sources.push({ name:'Cırcır', color: spot.color, getPos: () => ({x:spot.x,y:spot.y,z:spot.z}), setLevel: v => out.gain.value = v * 0.14 });
+  });
+}
+function chirpPulse(t, freq, rate, dest) {
+  const osc = audio.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq;
+  const am = audio.createGain(); am.gain.value = 0.5;
+  const amLfo = audio.createOscillator(); amLfo.frequency.value = rate;
+  const amLfoG = audio.createGain(); amLfoG.gain.value = 0.5;
+  amLfo.connect(amLfoG); amLfoG.connect(am.gain);
+  const env = audio.createGain();
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(0.6, t + 0.002);
+  env.gain.setValueAtTime(0.6, t + 0.016);
+  env.gain.linearRampToValueAtTime(0, t + 0.022);
+  osc.connect(am); am.connect(env); env.connect(dest);
+  osc.start(t); osc.stop(t + 0.03);
+  amLfo.start(t); amLfo.stop(t + 0.03);
+}
+
+/* ---------- KUŞLAR ---------- */
+function buildBirds() {
+  const out = audio.createGain(); out.gain.value = 0.08;
+  const pan = panner(-8, 5, -10);
+  out.connect(pan); pan.connect(sum);
+  function call() {
+    if (!running) return;
+    const now = audio.currentTime;
+    const n = 2 + Math.floor(Math.random()*4);
+    const baseF = 1800 + Math.random()*2400;
+    for (let i = 0; i < n; i++) {
+      const t = now + i*0.09 + Math.random()*0.02;
+      const osc = audio.createOscillator(); osc.type='sine';
+      const f0 = baseF * (0.9 + Math.random()*0.2);
+      osc.frequency.setValueAtTime(f0, t);
+      osc.frequency.exponentialRampToValueAtTime(f0 * (1.4 + Math.random()*0.4), t + 0.06);
+      osc.frequency.exponentialRampToValueAtTime(f0 * 0.9, t + 0.1);
+      const gg = audio.createGain();
+      gg.gain.setValueAtTime(0, t);
+      gg.gain.linearRampToValueAtTime(0.35, t + 0.008);
+      gg.gain.setValueAtTime(0.35, t + 0.06);
+      gg.gain.linearRampToValueAtTime(0, t + 0.1);
+      osc.connect(gg); gg.connect(out);
+      osc.start(t); osc.stop(t + 0.11);
+    }
+    setTimeout(call, (4 + Math.random()*6) * 1000);
+  }
+  setTimeout(call, 2000 + Math.random()*3000);
+  sources.push({ name:'Kuş', color:'#fde68a', getPos: () => ({x:-8,y:5,z:-10}), setLevel: v => out.gain.value = v * 0.08 });
+}
+
+/* ---------- GÖK GÜRÜLTÜSÜ ---------- */
+function startThunder() {
+  function check() {
+    if (!running) return;
+    if (Math.random() < 0.009) spawnThunder();
+    setTimeout(check, 1000);
+  }
+  check();
+}
+function spawnThunder() {
+  const ang = Math.random()*Math.PI*2;
+  const dist = 18 + Math.random()*30;
+  const x = Math.cos(ang)*dist, z = Math.sin(ang)*dist;
+  const pan = panner(x, 6, z);
+  pan.connect(sum);
+  const t = audio.currentTime + 0.05;
+  const dur = 2.5 + Math.random()*3;
+  const distanceDelay = dist / 340;
+
+  const src = audio.createBufferSource();
+  src.buffer = noise('brown'); src.loop = true;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass';
+  lp.frequency.setValueAtTime(160, t);
+  lp.frequency.exponentialRampToValueAtTime(55, t + dur);
+  const gg = audio.createGain();
+  gg.gain.setValueAtTime(0, t);
+  gg.gain.linearRampToValueAtTime(0.25 + Math.random()*0.3, t + 0.3 + distanceDelay);
+  gg.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+  src.connect(lp); lp.connect(gg); gg.connect(pan);
+  src.start(t); src.stop(t + dur + 0.2);
+
+  if (Math.random() < 0.7) {
+    const crack = audio.createBufferSource();
+    crack.buffer = noise('white');
+    const bp = audio.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.value = 200 + Math.random()*500; bp.Q.value = 1.1;
+    const cg = audio.createGain();
+    cg.gain.setValueAtTime(0, t);
+    cg.gain.linearRampToValueAtTime(0.35, t + 0.005 + distanceDelay);
+    cg.gain.exponentialRampToValueAtTime(0.001, t + 0.6 + distanceDelay);
+    crack.connect(bp); bp.connect(cg); cg.connect(pan);
+    crack.start(t); crack.stop(t + 0.7 + distanceDelay);
+  }
+  sources.push({ name:'⚡', color:'#94a3b8', getPos: () => ({x,y:6,z}), transient:true, until: t + dur + 1 });
+}
+
+/* ---------- DRONE ---------- */
+function buildDrone() {
+  const out = audio.createGain(); out.gain.value = 0.04;
+  const pan = panner(0, -3, 0);
+  out.connect(pan); pan.connect(sum);
+  [42, 47, 53].forEach(f => {
+    const o = audio.createOscillator(); o.type='sine'; o.frequency.value = f;
+    const gg = audio.createGain(); gg.gain.value = 0.33;
+    o.connect(gg); gg.connect(out);
+    o.start();
+  });
+  const src = audio.createBufferSource();
+  src.buffer = noise('brown'); src.loop = true;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 80;
+  const vg = audio.createGain(); vg.gain.value = 0.08;
+  src.connect(lp); lp.connect(vg); vg.connect(out);
+  src.start();
+}
+
+/* ---------- MASTER ---------- */
+async function start() {
+  $('start').classList.add('hidden');
+  audio = new (window.AudioContext || window.webkitAudioContext)();
+  await audio.resume();
+  // iOS unlock
+  try {
+    const silent = audio.createBuffer(1, 1, 22050);
+    const s = audio.createBufferSource(); s.buffer = silent;
+    s.connect(audio.destination); s.start(0);
+  } catch(e){}
+  running = true;
+  sum = audio.createGain();
+  const comp = audio.createDynamicsCompressor();
+  comp.threshold.value = -22; comp.knee.value = 15; comp.ratio.value = 3.5;
+  comp.attack.value = 0.005; comp.release.value = 0.3;
+  const limit = audio.createDynamicsCompressor();
+  limit.threshold.value = -2; limit.knee.value = 0; limit.ratio.value = 20;
+  limit.attack.value = 0.001; limit.release.value = 0.05;
+  master = audio.createGain();
+  master.gain.value = 0;
+  master.gain.linearRampToValueAtTime(parseFloat($('masterVol').value), audio.currentTime + 2);
+  const rev = audio.createConvolver(); rev.buffer = reverbIR();
+  const revWet = audio.createGain(); revWet.gain.value = 0.35;
+  sum.connect(comp);
+  sum.connect(rev); rev.connect(revWet); revWet.connect(comp);
+  comp.connect(limit); limit.connect(master); master.connect(audio.destination);
+
+  buildWind();
+  buildFire(-1, 0.25, -1);
+  buildRain();
+  buildStream(3, 0.1, -2);
+  buildCrickets();
+  buildBirds();
+  buildDrone();
+  startThunder();
+
+  // Slider'ları hemen uygula + periyodik senkron
+  applySliders();
+  setInterval(applySliders, 100);
+
+  // Transient cleanup (sources array growth fix)
+  setInterval(() => {
+    if (!audio) return;
+    const nowT = audio.currentTime;
+    for (let i = sources.length - 1; i >= 0; i--) {
+      if (sources[i].transient && nowT > sources[i].until) sources.splice(i, 1);
+    }
+  }, 2000);
+
+  updateListener();
+  drawRadar(performance.now());
+}
+
+function applySliders() {
+  if (!running) return;
+  const map = { vWind:'Rüzgar', vRain:'Yağmur', vFire:'Ateş', vStream:'Dere', vBug:'Cırcır', vBird:'Kuş' };
+  for (const id in map) {
+    const v = parseFloat($(id).value);
+    sources.filter(s => s.name === map[id]).forEach(s => s.setLevel && s.setLevel(v));
+  }
+}
+
+/* ---------- DİNLEYİCİ ---------- */
+function updateListener() {
+  if (!audio) return;
+  const L = audio.listener;
+  if (L.positionX) {
+    L.positionX.value = pos.x; L.positionY.value = pos.y; L.positionZ.value = pos.z;
+  } else {
+    L.setPosition(pos.x, pos.y, pos.z);
+  }
+  const cp = Math.cos(pitch);
+  const fx = Math.sin(yaw)*cp, fy = Math.sin(pitch), fz = -Math.cos(yaw)*cp;
+  if (L.forwardX) {
+    L.forwardX.value = fx; L.forwardY.value = fy; L.forwardZ.value = fz;
+    L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else {
+    L.setOrientation(fx, fy, fz, 0, 1, 0);
+  }
+}
+
+/* ---------- GİRDİ (desktop) ---------- */
+let lookPointerId = null;
+let drag = false, lx = 0, ly = 0;
+
+canvas.addEventListener('pointerdown', e => {
+  if (lookPointerId !== null) return;
+  lookPointerId = e.pointerId;
+  drag = true;
+  lx = e.clientX; ly = e.clientY;
+  try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId !== lookPointerId || !drag) return;
+  yaw += (e.clientX - lx) * 0.005;
+  pitch -= (e.clientY - ly) * 0.004;
+  pitch = Math.max(-1.1, Math.min(1.1, pitch));
+  lx = e.clientX; ly = e.clientY;
+  updateListener();
+});
+function endLook(e) {
+  if (e.pointerId === lookPointerId) { lookPointerId = null; drag = false; }
+}
+window.addEventListener('pointerup', endLook);
+window.addEventListener('pointercancel', endLook);
+
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+/* ---------- JOYSTICK (mobile) ---------- */
+const joyBase = $('joyBase'), joyKnob = $('joyKnob');
+const joyState = { active:false, id:null, cx:0, cy:0, dx:0, dy:0, r:60 };
+
+function centerKnob() {
+  const rect = joyBase.getBoundingClientRect();
+  if (rect.width === 0) return;
+  joyState.cx = rect.left + rect.width/2;
+  joyState.cy = rect.top + rect.height/2;
+  joyState.r = rect.width/2 - 12;
+  joyState.dx = 0; joyState.dy = 0;
+  updateKnob();
+}
+function updateKnob() {
+  joyKnob.style.left = (joyState.cx + joyState.dx - 27) + 'px';
+  joyKnob.style.top  = (joyState.cy + joyState.dy - 27) + 'px';
+}
+window.addEventListener('resize', () => { setTimeout(centerKnob, 50); });
+setTimeout(centerKnob, 100);
+
+joyBase.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  joyState.active = true;
+  joyState.id = e.pointerId;
+  centerKnob();
+  try { joyBase.setPointerCapture(e.pointerId); } catch(_){}
+});
+joyBase.addEventListener('pointermove', e => {
+  if (!joyState.active || e.pointerId !== joyState.id) return;
+  const dx = e.clientX - joyState.cx;
+  const dy = e.clientY - joyState.cy;
+  const r = Math.hypot(dx, dy);
+  if (r > joyState.r) {
+    joyState.dx = dx / r * joyState.r;
+    joyState.dy = dy / r * joyState.r;
+  } else {
+    joyState.dx = dx; joyState.dy = dy;
+  }
+  updateKnob();
+});
+function endJoy(e) {
+  if (e.pointerId !== joyState.id) return;
+  joyState.active = false;
+  joyState.id = null;
+  joyState.dx = 0; joyState.dy = 0;
+  updateKnob();
+}
+joyBase.addEventListener('pointerup', endJoy);
+joyBase.addEventListener('pointercancel', endJoy);
+
+/* Up / Down buttons */
+const btnUp = $('btnUp'), btnDn = $('btnDn');
+btnUp.addEventListener('pointerdown', e => { e.preventDefault(); keys['q'] = true; try{btnUp.setPointerCapture(e.pointerId);}catch(_){} });
+btnUp.addEventListener('pointerup',   () => { keys['q'] = false; });
+btnUp.addEventListener('pointercancel', () => { keys['q'] = false; });
+btnDn.addEventListener('pointerdown', e => { e.preventDefault(); keys['e'] = true; try{btnDn.setPointerCapture(e.pointerId);}catch(_){} });
+btnDn.addEventListener('pointerup',   () => { keys['e'] = false; });
+btnDn.addEventListener('pointercancel', () => { keys['e'] = false; });
+
+/* ---------- SETTINGS (mobile) ---------- */
+const settingsBtn = $('settingsBtn');
+const settingsPanel = $('settingsPanel');
+const settingsOverlay = $('settingsOverlay');
+settingsBtn.addEventListener('click', () => {
+  settingsPanel.classList.toggle('open');
+  settingsOverlay.classList.toggle('open');
+});
+settingsOverlay.addEventListener('click', () => {
+  settingsPanel.classList.remove('open');
+  settingsOverlay.classList.remove('open');
+});
+
+/* Sync mobile ↔ desktop slider değerleri */
+function syncSlider(dstId, srcId) {
+  const d = $(dstId), s = $(srcId);
+  d.value = s.value;
+  d.addEventListener('input', () => { s.value = d.value; s.dispatchEvent(new Event('input')); });
+  s.addEventListener('input', () => { d.value = s.value; d.dispatchEvent(new Event('input')); });
+}
+syncSlider('masterVolM','masterVol');
+syncSlider('vWindM','vWind');
+syncSlider('vRainM','vRain');
+syncSlider('vFireM','vFire');
+syncSlider('vStreamM','vStream');
+syncSlider('vBugM','vBug');
+syncSlider('vBirdM','vBird');
+
+/* ---------- ÇİZİM ---------- */
+let lastFrame = performance.now();
+function drawRadar(now) {
+  if (!running) return;
+  const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+  const speed = 3.5 * dt;
+  const fx = Math.sin(yaw), fz = -Math.cos(yaw);
+  const rx = Math.cos(yaw), rz = Math.sin(yaw);
+
+  if (keys['w']) { pos.x += fx*speed; pos.z += fz*speed; }
+  if (keys['s']) { pos.x -= fx*speed; pos.z -= fz*speed; }
+  if (keys['a']) { pos.x -= rx*speed; pos.z -= rz*speed; }
+  if (keys['d']) { pos.x += rx*speed; pos.z += rz*speed; }
+  if (keys['q']) pos.y += speed;
+  if (keys['e']) pos.y -= speed;
+
+  // Joystick
+  if (joyState.active) {
+    const jx = joyState.dx / joyState.r;
+    const jy = joyState.dy / joyState.r;
+    if (Math.hypot(jx, jy) > 0.12) {
+      pos.x += (fx * -jy + rx * jx) * speed;
+      pos.z += (fz * -jy + rz * jx) * speed;
+    }
+  }
+
+  pos.y = Math.max(0.3, Math.min(15, pos.y));
+  updateListener();
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (canvas.width !== W*dpr || canvas.height !== H*dpr) {
+    canvas.width = W*dpr; canvas.height = H*dpr;
+  }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+
+  const cx = W/2, cy = H/2;
+  const scale = Math.min(W, H) / 50;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+
+  g.strokeStyle = 'rgba(90,140,200,.12)';
+  g.lineWidth = 1;
+  for (let r = 5; r <= 35; r += 5) {
+    g.beginPath(); g.arc(cx, cy, r*scale, 0, Math.PI*2); g.stroke();
+  }
+  g.beginPath();
+  g.moveTo(cx, cy-35*scale); g.lineTo(cx, cy+35*scale);
+  g.moveTo(cx-35*scale, cy); g.lineTo(cx+35*scale, cy);
+  g.stroke();
+
+  g.fillStyle = 'rgba(80,220,140,.9)';
+  g.beginPath();
+  g.moveTo(cx, cy-14); g.lineTo(cx-8, cy+8); g.lineTo(cx+8, cy+8);
+  g.closePath(); g.fill();
+  g.fillStyle = 'rgba(80,220,140,.35)';
+  g.beginPath(); g.arc(cx, cy, 18, 0, Math.PI*2); g.fill();
+
+  const nowT = audio ? audio.currentTime : 0;
+  const seen = new Set();
+  for (const src of sources) {
+    if (src.transient && nowT > src.until) continue;
+    const p = src.getPos();
+    const dx = p.x - pos.x, dz = p.z - pos.z;
+    const rx2 = dx*c + dz*s, rz2 = -dx*s + dz*c;
+    const sx = cx + rx2*scale, sy = cy + rz2*scale;
+    if (sx < -20 || sx > W+20 || sy < -20 || sy > H+20) continue;
+    g.fillStyle = src.color;
+    g.globalAlpha = src.transient ? 0.5 : 0.85;
+    g.beginPath(); g.arc(sx, sy, 4.5, 0, Math.PI*2); g.fill();
+    if (src.transient) {
+      g.globalAlpha = 0.3;
+      g.beginPath(); g.arc(sx, sy, 10, 0, Math.PI*2); g.fill();
+    }
+    g.globalAlpha = 1;
+    if (!seen.has(src.name)) {
+      seen.add(src.name);
+      g.fillStyle = 'rgba(180,200,220,.55)';
+      g.font = '10px ui-monospace';
+      g.fillText(src.name, sx+8, sy+3);
+    }
+  }
+  g.fillStyle = 'rgba(120,150,180,.5)';
+  g.font = '11px ui-monospace';
+  g.fillText(`x:${pos.x.toFixed(1)} y:${pos.y.toFixed(1)} z:${pos.z.toFixed(1)}`, 12, H-12);
+  requestAnimationFrame(drawRadar);
+}
+
+/* ---------- BAĞLA ---------- */
+function setMasterVol(v) {
+  if (master && audio) master.gain.setTargetAtTime(v, audio.currentTime, 0.05);
+}
+$('masterVol').addEventListener('input', e => setMasterVol(parseFloat(e.target.value)));
+$('masterVolM').addEventListener('input', e => setMasterVol(parseFloat(e.target.value)));
+$('start').addEventListener('click', start);
+</script>
+</body>
+</html>
