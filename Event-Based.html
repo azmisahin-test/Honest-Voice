@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Olay Tabanlı Gözlem · Dürüst Ses</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{margin:0;height:100%;background:#0a0e14;color:#c9d6e3;
+    font-family:ui-monospace,monospace;overflow:hidden}
+  @supports (height: 100dvh){body{height:100dvh}}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .title{position:fixed;top:20px;left:20px;font-size:11px;letter-spacing:3px;
+    color:#4a6580;text-transform:uppercase;font-weight:600;z-index:10}
+  .title b{color:#7aa5d0;font-weight:600}
+  #start{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    padding:18px 44px;font-size:16px;letter-spacing:3px;
+    background:linear-gradient(135deg,#1a3a5c,#2a5f8f);color:#fff;border:0;
+    border-radius:10px;cursor:pointer;box-shadow:0 6px 24px rgba(42,95,143,.4);
+    transition:all .3s;font-family:ui-monospace,monospace;font-weight:600;z-index:100}
+  #start:hover{transform:translate(-50%,-50%) scale(1.03)}
+  #start.hidden{opacity:0;pointer-events:none}
+  .panel{position:fixed;top:20px;right:20px;width:320px;
+    background:rgba(10,16,24,.92);
+    border:1px solid rgba(120,180,255,.15);border-radius:10px;padding:14px;
+    font-size:12px;color:#8ea3b8;max-height:calc(100dvh - 40px);
+    overflow-y:auto;z-index:10}
+  .panel h3{margin:0 0 10px 0;font-size:11px;letter-spacing:2px;color:#5a7a9a;
+    text-transform:uppercase;font-weight:600}
+  .event{padding:6px 8px;margin-bottom:4px;background:rgba(40,60,90,.3);
+    border-left:2px solid #2a5f8f;border-radius:3px;font-size:11px;color:#a5bdd5;
+    animation:slideIn .3s ease-out}
+  .event.walk{border-left-color:#60a5fa}
+  .event.eat{border-left-color:#f97316}
+  .event.alert{border-left-color:#ef4444}
+  .event.sleep{border-left-color:#8b5cf6}
+  .event.wind{border-left-color:#64748b;opacity:.6}
+  @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+  .status{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;
+    padding-bottom:14px;border-bottom:1px solid rgba(120,180,255,.15)}
+  .status-row{display:flex;justify-content:space-between;font-size:11px}
+  .status-row span:last-child{color:#e6edf3}
+  .hud{position:fixed;left:20px;bottom:20px;background:rgba(10,16,24,.92);
+    border:1px solid rgba(120,180,255,.15);border-radius:10px;padding:12px 16px;
+    font-size:12px;color:#8ea3b8;line-height:1.6;z-index:10}
+  .hud b{color:#e6edf3;font-weight:500}
+  .hud kbd{background:#1a2432;border:1px solid #2a3a4d;border-radius:3px;
+    padding:1px 5px;font-family:ui-monospace,monospace;font-size:10px;color:#a8c5e0}
+  .mobile-hint{display:none}
+  .untrack-btn{display:none;position:fixed;bottom:20px;left:50%;
+    transform:translateX(-50%);padding:10px 20px;background:rgba(10,16,24,.92);
+    border:1px solid rgba(120,180,255,.3);border-radius:20px;
+    color:#a5bdd5;font-family:ui-monospace,monospace;font-size:12px;
+    z-index:20;cursor:pointer}
+  .untrack-btn.show{display:block}
+  @media (max-width: 768px), (pointer: coarse) {
+    .mobile-hint{display:inline}
+    .desktop-hint{display:none}
+    .title{top:12px;left:12px;font-size:9px;letter-spacing:2px}
+    .panel{top:auto;bottom:12px;right:12px;width:min(180px,calc(100vw - 24px));
+      max-height:180px;padding:10px;font-size:10px;border-radius:8px}
+    .panel h3{font-size:9px;margin-bottom:6px}
+    .event{font-size:9px;padding:3px 6px;margin-bottom:3px}
+    .status-row{font-size:9px}
+    .status{gap:3px;margin-bottom:8px;padding-bottom:8px}
+    .hud{left:12px;bottom:auto;top:44px;padding:8px 12px;font-size:10px;
+      max-width:200px;line-height:1.5;border-radius:8px}
+    .hud kbd{font-size:9px;padding:0 4px}
+    #start{padding:16px 36px;font-size:14px}
+  }
+  @media (max-height: 500px) and (pointer: coarse) {
+    .panel{display:none}
+    .hud{top:10px;font-size:9px}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="title">◉ OLAY TABANLI GÖZLEM · <b>dürüst ses</b></div>
+<button id="start">BAŞLAT</button>
+
+<button id="untrackBtn" class="untrack-btn">✕ Takibi Bırak</button>
+
+<div class="panel">
+  <div class="status">
+    <div class="status-row"><span>SAAT</span><span id="clock">--:--</span></div>
+    <div class="status-row"><span>RÜZGAR</span><span id="wind-status">--</span></div>
+    <div class="status-row"><span>YARATIK</span><span id="creature-count">--</span></div>
+    <div class="status-row"><span>DURUM</span><span id="world-status">--</span></div>
+  </div>
+  <h3>Olay Kuyruğu</h3>
+  <div id="events"></div>
+</div>
+
+<div class="hud">
+  <b>Felsefe testi:</b> hiçbir ses yok — sadece simülasyon olayları var.<br>
+  <span class="desktop-hint"><kbd>Fare</kbd> gözlemci bakışı · <kbd>1-5</kbd> yaratığı takip et · <kbd>0</kbd> serbest</span>
+  <span class="mobile-hint">Sürükle: bak · Yaratığa dokun: takip</span>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const canvas = $('scene'), ctx = canvas.getContext('2d');
+
+/* =========================================================
+   DÜNYA SİMÜLASYONU
+   ========================================================= */
+const world = {
+  time: 0,
+  windSpeed: 0.5,
+  windAngle: 0,
+  observers: { x: 0, z: 0, yaw: 0, tracking: null },
+  creatures: [],
+  eventLog: [],
+};
+
+const STATE = { IDLE:'idle', WALK:'walk', EAT:'eat', ALERT:'alert', SLEEP:'sleep' };
+
+class Creature {
+  constructor(id, x, z) {
+    this.id = id;
+    this.x = x; this.z = z;
+    this.hue = [0, 30, 200, 280, 130][id % 5];
+    this.state = STATE.IDLE;
+    this.stateTimer = 2 + Math.random() * 3;
+    this.target = { x, z };
+    this.hunger = 0.5 + Math.random() * 0.3;
+    this.alertness = 0.3;
+    this.speed = 0.8 + Math.random() * 0.4;
+    this.stepPhase = 0;
+    this._lastStep = -1;               // ✅ FIX: adım olayı artık tetiklenir
+    this.size = 8 + Math.random() * 4;
+    // Ekran koordinatları (mobil tap-to-track için)
+    this._sx = null; this._sy = null; this._sr = 0;
+  }
+  update(dt, world) {
+    this.stateTimer -= dt;
+    this.hunger = Math.min(1, this.hunger + dt * 0.02);
+    // ✅ FIX: açlık eşiği yükseltildi, yeme olasılığı daha güvenli
+    if (this.stateTimer <= 0) {
+      const r = Math.random();
+      if (this.hunger > 0.85 && r < 0.8) this.transition(STATE.EAT);
+      else if (r < 0.35) this.transition(STATE.WALK);
+      else if (r < 0.55) this.transition(STATE.IDLE);
+      else if (r < 0.70 && this.alertness > 0.4) this.transition(STATE.ALERT);
+      else if (r < 0.85) this.transition(STATE.SLEEP);
+      else this.transition(STATE.WALK);
+    }
+    if (this.state === STATE.WALK) {
+      const dx = this.target.x - this.x, dz = this.target.z - this.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.15) {
+        this.target.x = (Math.random() - 0.5) * 15;
+        this.target.z = (Math.random() - 0.5) * 15;
+      } else {
+        this.x += (dx / dist) * this.speed * dt;
+        this.z += (dz / dist) * this.speed * dt;
+        this.stepPhase += this.speed * dt * 2.5;
+        const stepIdx = Math.floor(this.stepPhase / Math.PI);
+        if (stepIdx > this._lastStep) {
+          this._lastStep = stepIdx;
+          world.emit('footstep', this, { intensity: 0.5 + Math.random() * 0.3 });
+        }
+      }
+    } else if (this.state === STATE.EAT) {
+      if (Math.random() < dt * 1.5) {
+        world.emit('bite', this, { pitch: 0.8 + Math.random() * 0.4 });
+      }
+      this.hunger = Math.max(0, this.hunger - dt * 0.15);
+    } else if (this.state === STATE.ALERT) {
+      if (Math.random() < dt * 0.7) {
+        world.emit('alert', this, { pitch: 0.9 + Math.random() * 0.3 });
+      }
+    } else if (this.state === STATE.SLEEP) {
+      if (Math.random() < dt * 0.15) {
+        world.emit('snore', this, {});
+      }
+    }
+  }
+  transition(newState) {
+    if (this.state === newState) return;
+    this.state = newState;
+    this.stateTimer = newState === STATE.WALK ? 3 + Math.random() * 4 :
+                      newState === STATE.SLEEP ? 5 + Math.random() * 6 :
+                      newState === STATE.EAT ? 3 + Math.random() * 2 :
+                      1.5 + Math.random() * 1.5;
+    if (newState === STATE.WALK) {
+      this.target.x = (Math.random() - 0.5) * 15;
+      this.target.z = (Math.random() - 0.5) * 15;
+    }
+    if (newState === STATE.ALERT) this.alertness = Math.min(1, this.alertness + 0.2);
+  }
+}
+
+world.emit = function(type, source, data) {
+  const ev = { type, source: source.id, x: source.x, z: source.z, t: this.time, data };
+  this.eventLog.push(ev);
+  if (this.eventLog.length > 20) this.eventLog.shift();
+  onWorldEvent(ev);
+};
+
+function initWorld() {
+  world.creatures = [];
+  const positions = [[-4,-3],[5,2],[-2,5],[6,-5],[-6,6]];
+  positions.forEach((p, i) => world.creatures.push(new Creature(i, p[0], p[1])));
+}
+
+/* =========================================================
+   SES SENTEZİ
+   ========================================================= */
+let audio, master, activeVoices = 0;
+const MAX_VOICES = 24;
+
+function initAudio() {
+  audio = new (window.AudioContext || window.webkitAudioContext)();
+  master = audio.createGain();
+  master.gain.value = 0.7;
+  const limit = audio.createDynamicsCompressor();
+  limit.threshold.value = -12; limit.ratio.value = 8;
+  limit.attack.value = 0.002; limit.release.value = 0.1;
+  master.connect(limit); limit.connect(audio.destination);
+}
+
+function panFor(srcX, srcZ) {
+  const dx = srcX - world.observers.x;
+  const dz = srcZ - world.observers.z;
+  const angleToSrc = Math.atan2(dx, -dz) - world.observers.yaw;
+  return Math.sin(angleToSrc);
+}
+function distFor(srcX, srcZ) {
+  return Math.hypot(srcX - world.observers.x, srcZ - world.observers.z);
+}
+function gainFor(dist) {
+  return 1 / (1 + Math.pow(dist / 3, 2));
+}
+
+function makeNodeChain() {
+  const g = audio.createGain();
+  const p = audio.createStereoPanner();
+  g.connect(p);
+  p.connect(master);
+  return { g, p };
+}
+
+function playFootstep(x, z, intensity) {
+  if (activeVoices >= MAX_VOICES) return;
+  activeVoices++;
+  const now = audio.currentTime;
+  const pan = panFor(x, z);
+  const dist = distFor(x, z);
+  const vol = gainFor(dist) * intensity * 0.35;
+  if (vol < 0.002) { activeVoices--; return; }
+
+  const { g, p } = makeNodeChain();
+  p.pan.value = pan; g.gain.value = vol;
+
+  const len = Math.floor(audio.sampleRate * 0.06);
+  const buf = audio.createBuffer(1, len, audio.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const t = i / audio.sampleRate;
+    const env = Math.exp(-t * 80);
+    d[i] = (Math.random() * 2 - 1) * env;
+  }
+  const src = audio.createBufferSource(); src.buffer = buf;
+  const bp = audio.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value = 180 + Math.random() * 120; bp.Q.value = 2 + Math.random() * 2;
+  const tail = audio.createBiquadFilter(); tail.type='lowpass'; tail.frequency.value = 400;
+  src.connect(bp); bp.connect(tail); tail.connect(g);
+  src.start(now);
+
+  const osc = audio.createOscillator(); osc.type='sine';
+  osc.frequency.setValueAtTime(60 + Math.random() * 30, now);
+  osc.frequency.exponentialRampToValueAtTime(30, now + 0.08);
+  const og = audio.createGain();
+  og.gain.setValueAtTime(vol * 0.6, now);
+  og.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.connect(og); og.connect(g);
+  osc.start(now); osc.stop(now + 0.12);
+
+  setTimeout(() => activeVoices--, 200);
+}
+
+function playBite(x, z, pitch) {
+  if (activeVoices >= MAX_VOICES) return;
+  activeVoices++;
+  const now = audio.currentTime;
+  const pan = panFor(x, z);
+  const dist = distFor(x, z);
+  const vol = gainFor(dist) * 0.25;
+  if (vol < 0.002) { activeVoices--; return; }
+  const { g, p } = makeNodeChain();
+  p.pan.value = pan; g.gain.value = vol;
+
+  const len = Math.floor(audio.sampleRate * 0.04);
+  const buf = audio.createBuffer(1, len, audio.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/len * 20);
+  const src = audio.createBufferSource(); src.buffer = buf;
+  const bp = audio.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value = 1200 * pitch; bp.Q.value = 3;
+  src.connect(bp); bp.connect(g); src.start(now);
+
+  const osc = audio.createOscillator(); osc.type='triangle';
+  osc.frequency.setValueAtTime(220 * pitch, now);
+  osc.frequency.exponentialRampToValueAtTime(140 * pitch, now + 0.05);
+  const og = audio.createGain();
+  og.gain.setValueAtTime(vol * 0.5, now);
+  og.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.connect(og); og.connect(g);
+  osc.start(now); osc.stop(now + 0.1);
+  setTimeout(() => activeVoices--, 200);
+}
+
+function playAlert(x, z, pitch) {
+  if (activeVoices >= MAX_VOICES) return;
+  activeVoices++;
+  const now = audio.currentTime;
+  const pan = panFor(x, z);
+  const dist = distFor(x, z);
+  const vol = gainFor(dist) * 0.4;
+  if (vol < 0.002) { activeVoices--; return; }
+  const { g, p } = makeNodeChain();
+  p.pan.value = pan; g.gain.value = vol;
+
+  const carrier = audio.createOscillator(); carrier.type='sine';
+  carrier.frequency.setValueAtTime(600 * pitch, now);
+  carrier.frequency.exponentialRampToValueAtTime(1400 * pitch, now + 0.15);
+  carrier.frequency.exponentialRampToValueAtTime(900 * pitch, now + 0.25);
+
+  const mod = audio.createOscillator(); mod.type='sine';
+  mod.frequency.value = 50 * pitch;
+  const modGain = audio.createGain(); modGain.gain.value = 200;
+  mod.connect(modGain); modGain.connect(carrier.frequency);
+
+  const env = audio.createGain();
+  env.gain.setValueAtTime(0, now);
+  env.gain.linearRampToValueAtTime(vol * 0.5, now + 0.01);
+  env.gain.setValueAtTime(vol * 0.5, now + 0.2);
+  env.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+  carrier.connect(env); env.connect(g);
+  carrier.start(now); carrier.stop(now + 0.35);
+  mod.start(now); mod.stop(now + 0.35);
+  setTimeout(() => activeVoices--, 400);
+}
+
+function playSnore(x, z) {
+  if (activeVoices >= MAX_VOICES) return;
+  activeVoices++;
+  const now = audio.currentTime;
+  const pan = panFor(x, z);
+  const dist = distFor(x, z);
+  const vol = gainFor(dist) * 0.15;
+  if (vol < 0.002) { activeVoices--; return; }
+  const { g, p } = makeNodeChain();
+  p.pan.value = pan; g.gain.value = vol;
+
+  const osc = audio.createOscillator(); osc.type='sawtooth';
+  osc.frequency.setValueAtTime(55, now);
+  osc.frequency.linearRampToValueAtTime(45, now + 0.5);
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 200;
+  const env = audio.createGain();
+  env.gain.setValueAtTime(0, now);
+  env.gain.linearRampToValueAtTime(1, now + 0.15);
+  env.gain.linearRampToValueAtTime(0, now + 0.7);
+  osc.connect(lp); lp.connect(env); env.connect(g);
+  osc.start(now); osc.stop(now + 0.75);
+  setTimeout(() => activeVoices--, 800);
+}
+
+/* Rüzgâr bed'i */
+let windBed = null;
+let lastWindSpeed = -1;
+function initWind() {
+  const src = audio.createBufferSource();
+  const len = Math.floor(audio.sampleRate * 3);
+  const buf = audio.createBuffer(1, len, audio.sampleRate);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {
+    last = (last + 0.02 * (Math.random()*2-1)) / 1.02;
+    d[i] = last * 3;
+  }
+  src.buffer = buf; src.loop = true;
+  const lp = audio.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 350;
+  const g = audio.createGain(); g.gain.value = 0;
+  src.connect(lp); lp.connect(g); g.connect(master);
+  src.start();
+  windBed = { g, lp };
+}
+function updateWind() {
+  if (!windBed) return;
+  // ✅ FIX: küçük değişimlerde setTargetAtTime çağrısı atlanır
+  if (Math.abs(world.windSpeed - lastWindSpeed) < 0.005) return;
+  lastWindSpeed = world.windSpeed;
+  windBed.g.gain.setTargetAtTime(world.windSpeed * 0.15, audio.currentTime, 0.5);
+  windBed.lp.frequency.setTargetAtTime(200 + world.windSpeed * 400, audio.currentTime, 0.5);
+}
+
+/* =========================================================
+   OLAY → SES KÖPRÜSÜ
+   ========================================================= */
+function onWorldEvent(ev) {
+  if (!audio || audio.state !== 'running') return;
+  switch (ev.type) {
+    case 'footstep': playFootstep(ev.x, ev.z, ev.data.intensity); break;
+    case 'bite':     playBite(ev.x, ev.z, ev.data.pitch); break;
+    case 'alert':    playAlert(ev.x, ev.z, ev.data.pitch); break;
+    case 'snore':    playSnore(ev.x, ev.z); break;
+  }
+  logEvent(ev);
+}
+
+function logEvent(ev) {
+  const el = document.createElement('div');
+  // ✅ FIX: doğru CSS class eşlemesi
+  const clsMap = { footstep:'walk', bite:'eat', alert:'alert', snore:'sleep' };
+  el.className = 'event ' + (clsMap[ev.type] || ev.type);
+  const labels = { footstep:'adım', bite:'ısırma', alert:'uyarı', snore:'horlama' };
+  el.textContent = `[${ev.t.toFixed(1)}s] y#${ev.source} ${labels[ev.type]||ev.type} @ (${ev.x.toFixed(1)}, ${ev.z.toFixed(1)})`;
+  $('events').prepend(el);
+  while ($('events').children.length > 12) $('events').lastChild.remove();
+}
+
+/* =========================================================
+   GÖRSEL
+   ========================================================= */
+let lastFrame = performance.now();
+function draw(now) {
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+
+  if (running) {
+    world.time += dt;
+    world.windSpeed = 0.5 + Math.sin(world.time * 0.07) * 0.3;
+    world.windAngle += dt * 0.1;
+    world.creatures.forEach(c => c.update(dt, world));
+    updateWind();
+    updateHUD();
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (canvas.width !== W*dpr || canvas.height !== H*dpr) {
+    canvas.width = W*dpr; canvas.height = H*dpr;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0a0e14';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(60,90,120,.1)';
+  ctx.lineWidth = 1;
+  const gridSize = 40;
+  for (let x = 0; x < W; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  const cx = W/2, cy = H/2;
+  const scale = Math.min(W, H) / 35;
+
+  // Gözlemci
+  ctx.fillStyle = 'rgba(120,180,220,.9)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+  const cp = Math.cos(world.observers.yaw);
+  const sp = Math.sin(world.observers.yaw);
+  ctx.fillStyle = 'rgba(120,180,220,.15)';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, 80, Math.atan2(-cp, sp) - 0.5, Math.atan2(-cp, sp) + 0.5);
+  ctx.closePath(); ctx.fill();
+
+  // Yaratıklar
+  const cYaw = Math.cos(world.observers.yaw);
+  const sYaw = Math.sin(world.observers.yaw);
+  world.creatures.forEach(c => {
+    const dx = c.x - world.observers.x;
+    const dz = c.z - world.observers.z;
+    const rx = dx * cYaw + dz * sYaw;
+    const rz = -dx * sYaw + dz * cYaw;
+    const sx = cx + rx * scale;
+    const sy = cy + rz * scale;
+
+    // ✅ FIX: ekran koordinatlarını sakla (tap-to-track için)
+    c._sx = sx; c._sy = sy; c._sr = c.size;
+
+    const colors = { idle:'#7aa5d0', walk:'#60a5fa', eat:'#f97316', alert:'#ef4444', sleep:'#8b5cf6' };
+    const col = colors[c.state] || '#7aa5d0';
+
+    // Takip halkası
+    if (world.observers.tracking === c.id) {
+      ctx.strokeStyle = 'rgba(120,180,220,.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, c.size + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(sx, sy, c.size, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = 'rgba(200,220,240,.8)';
+    ctx.font = '10px ui-monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`#${c.id}`, sx, sy - c.size - 4);
+
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(sx + c.size * 0.8, sy - c.size * 0.8, 3, 0, Math.PI * 2); ctx.fill();
+
+    if (world.observers.tracking === c.id) {
+      ctx.strokeStyle = 'rgba(120,180,220,.4)';
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(sx, sy); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  ctx.fillStyle = 'rgba(120,150,180,.4)';
+  ctx.font = '11px ui-monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`rüzgar ${world.windSpeed.toFixed(2)} m/s`, 12, H - 24);
+  ctx.fillText(`t = ${world.time.toFixed(1)}s`, 12, H - 8);
+
+  requestAnimationFrame(draw);
+}
+
+function updateHUD() {
+  $('clock').textContent = world.time.toFixed(1) + 's';
+  $('wind-status').textContent = world.windSpeed.toFixed(2) + ' m/s';
+  $('creature-count').textContent = world.creatures.length;
+  const counts = {};
+  world.creatures.forEach(c => counts[c.state] = (counts[c.state]||0)+1);
+  $('world-status').textContent = Object.entries(counts).map(([k,v]) => `${k}:${v}`).join(' · ');
+}
+
+/* =========================================================
+   GİRDİ
+   ========================================================= */
+let lookPointerId = null;
+let drag = false, lx = 0, ly = 0;
+let tapStart = { x:0, y:0, t:0 };
+
+canvas.addEventListener('pointerdown', e => {
+  if (lookPointerId !== null) return;
+  lookPointerId = e.pointerId;
+  drag = true;
+  lx = e.clientX; ly = e.clientY;
+  tapStart = { x: e.clientX, y: e.clientY, t: performance.now() };
+  try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId !== lookPointerId || !drag) return;
+  world.observers.yaw += (e.clientX - lx) * 0.01;
+  lx = e.clientX; ly = e.clientY;
+});
+function endPointer(e) {
+  if (e.pointerId !== lookPointerId) return;
+  // ✅ Tap tespiti: küçük hareket + kısa süre → dokunma
+  const dx = e.clientX - tapStart.x;
+  const dy = e.clientY - tapStart.y;
+  const dt = performance.now() - tapStart.t;
+  if (Math.hypot(dx, dy) < 8 && dt < 300) {
+    handleTap(e.clientX, e.clientY);
+  }
+  lookPointerId = null;
+  drag = false;
+}
+window.addEventListener('pointerup', endPointer);
+window.addEventListener('pointercancel', endPointer);
+
+function handleTap(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  // Yaratığa dokunuldu mu?
+  let found = null;
+  for (const c of world.creatures) {
+    if (c._sx == null) continue;
+    const d = Math.hypot(x - c._sx, y - c._sy);
+    if (d < c._sr + 12) { found = c.id; break; }
+  }
+  if (found !== null) {
+    world.observers.tracking = found;
+    updateTrackBtn();
+  } else {
+    // Boş alan → serbest
+    world.observers.tracking = null;
+    updateTrackBtn();
+  }
+}
+
+function updateTrackBtn() {
+  const btn = $('untrackBtn');
+  if (world.observers.tracking !== null) btn.classList.add('show');
+  else btn.classList.remove('show');
+}
+$('untrackBtn').addEventListener('click', () => {
+  world.observers.tracking = null;
+  updateTrackBtn();
+});
+
+window.addEventListener('keydown', e => {
+  const k = e.key;
+  if (k >= '1' && k <= '5') {
+    world.observers.tracking = parseInt(k) - 1;
+    updateTrackBtn();
+  } else if (k === '0') {
+    world.observers.tracking = null;
+    updateTrackBtn();
+  }
+});
+
+/* =========================================================
+   BAŞLAT
+   ========================================================= */
+let running = false;
+async function start() {
+  $('start').classList.add('hidden');
+  initAudio();
+  await audio.resume();
+  // iOS unlock
+  try {
+    const silent = audio.createBuffer(1, 1, 22050);
+    const s = audio.createBufferSource(); s.buffer = silent;
+    s.connect(audio.destination); s.start(0);
+  } catch(e){}
+  initWind();
+  initWorld();
+  running = true;
+  lastFrame = performance.now();
+  requestAnimationFrame(draw);
+}
+
+$('start').addEventListener('click', start);
+
+// Start butonundan önce boş grid çiz
+initWorld();
+running = false;
+lastFrame = performance.now();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
